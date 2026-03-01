@@ -21,6 +21,7 @@ NC='\033[0m'
 SECRETS_FILE="$HOME/.claude_secrets"
 CONFIG_FILE="$HOME/.claude_multi_config"
 CONFIG_BACKUP_DIR="$HOME/.claude_configs_backup"
+CLAUDE_CONFIGS_BASE="$HOME/.claude_configs"
 
 # Check if whiptail/dialog is available (for pretty menus)
 DIALOG_CMD=""
@@ -32,12 +33,21 @@ fi
 
 # Supported providers
 declare -A PROVIDERS
-PROVIDERS[anthropic]="Anthropic Official"
+PROVIDERS[anthropic]="Anthropic (API Key)"
+PROVIDERS[claude-webauth]="Anthropic (Web Auth)"
 PROVIDERS[zai]="Z.ai (GLM)"
 PROVIDERS[deepseek]="DeepSeek"
 PROVIDERS[kimi]="Kimi (Moonshot AI)"
 PROVIDERS[openrouter]="OpenRouter"
 PROVIDERS[custom]="Custom Provider"
+
+# Anthropic subscription plans
+declare -A SUBSCRIPTION_PLANS
+SUBSCRIPTION_PLANS[none]="Free (No subscription)"
+SUBSCRIPTION_PLANS[claude]="Claude (Standard)"
+SUBSCRIPTION_PLANS[claude-pro]="Claude Pro"
+SUBSCRIPTION_PLANS[claude-max]="Claude Max"
+SUBSCRIPTION_PLANS[enterprise]="Enterprise"
 
 # Anthropic models
 declare -A ANTHROPIC_MODELS
@@ -302,6 +312,9 @@ add_shell_function() {
     local haiku_model=$8
     local use_custom_headers=$9
     local skip_permissions=${10}
+    local use_web_auth=${11}
+    local web_auth_dir=${12}
+    local subscription=${13}
 
     local config_file=$(get_shell_config_file "$shell_type")
     local function_code=""
@@ -310,12 +323,17 @@ add_shell_function() {
     function_code+="alias $alias_name=\""
 
     local env_vars=""
-    if [ -n "$base_url" ]; then
-        env_vars="ANTHROPIC_BASE_URL=\\\"$base_url\\\""
+
+    # Web auth: use CLAUDE_CONFIG_DIR instead of API key
+    if [ "$use_web_auth" = "true" ]; then
+        env_vars="CLAUDE_CONFIG_DIR=\\\"$web_auth_dir\\\""
+    elif [ "$provider" != "anthropic" ]; then
+        # API key auth for other providers
+        env_vars="ANTHROPIC_AUTH_TOKEN=\\\"\$${account_name}_API_KEY\\\""
     fi
 
-    if [ "$provider" != "anthropic" ]; then
-        env_vars="$env_vars ANTHROPIC_AUTH_TOKEN=\\\"\$${account_name}_API_KEY\\\""
+    if [ -n "$base_url" ]; then
+        env_vars="$env_vars ANTHROPIC_BASE_URL=\\\"$base_url\\\""
     fi
 
     if [ -n "$opus_model" ]; then
@@ -334,26 +352,68 @@ add_shell_function() {
         env_vars="$env_vars ANTHROPIC_CUSTOM_HEADERS=\\\"x-api-key: \$${account_name}_API_KEY\\\""
     fi
 
-    if [ "$provider" != "anthropic" ]; then
+    if [ "$provider" != "anthropic" ] && [ "$use_web_auth" != "true" ]; then
         env_vars="$env_vars CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
     fi
 
-    if [ -n "$env_vars" ]; then
-        function_code+="$env_vars "
+    # Subscription handling
+    if [ -n "$subscription" ] && [ "$subscription" != "none" ] && [ "$subscription" != "" ]; then
+        if [ "$subscription" = "prompt" ]; then
+            # Ask for subscription on every run - use a function instead
+            function_code+="$env_vars "
+            function_code+="select_claude_subscription \\\"\\\$@\\\"\""
+            function_code+="\n"
+
+            function_code+="# Function to select subscription before running claude\n"
+            function_code+="select_claude_subscription() {\n"
+            function_code+="    local subscription\n"
+            function_code+="    echo \"Select subscription plan for this session:\"\n"
+            function_code+="    echo \"  1) Free\"\n"
+            function_code+="    echo \"  2) Claude\"\n"
+            function_code+="    echo \"  3) Claude Pro\"\n"
+            function_code+="    echo \"  4) Claude Max\"\n"
+            function_code+="    echo \"  5) Enterprise\"\n"
+            function_code+="    read -p \"Enter choice [1-5]: \" sub_choice\n"
+            function_code+="    case \\$sub_choice in\n"
+            function_code+="        1) subscription=\"\" ;;\n"
+            function_code+="        2) subscription=\"claude\" ;;\n"
+            function_code+="        3) subscription=\"claude-pro\" ;;\n"
+            function_code+="        4) subscription=\"claude-max\" ;;\n"
+            function_code+="        5) subscription=\"enterprise\" ;;\n"
+            function_code+="        *) subscription=\"\" ;;\n"
+            function_code+="    esac\n"
+            function_code+="    [ -n \\\"\\$subscription\\\" ] && export CLAUDE_SUBSCRIPTION_ID=\\\"\\$subscription\\\"\n"
+            function_code+="    claude \\\"\\\$@\\\"\n"
+            function_code+="}\n"
+
+            # Skip the rest since we used a function
+            skip_alias_creation="true"
+        else
+            # Fixed subscription - set as env var
+            env_vars="$env_vars CLAUDE_SUBSCRIPTION_ID=\\\"$subscription\\\""
+        fi
     fi
 
-    function_code+="claude"
+    if [ "$skip_alias_creation" != "true" ]; then
+        if [ -n "$env_vars" ]; then
+            function_code+="$env_vars "
+        fi
 
-    if [ "$skip_permissions" = "true" ]; then
-        function_code+=" --dangerously-skip-permissions"
+        function_code+="claude"
+
+        if [ "$skip_permissions" = "true" ]; then
+            function_code+=" --dangerously-skip-permissions"
+        fi
+
+        function_code+=" \\\"\\\$@\\\"\"\n"
     fi
-
-    function_code+=" \\\"\\\$@\\\"\"\n"
 
     if grep -q "# === CLAUDE MULTI-ACCOUNT: $alias_name ===" "$config_file" 2>/dev/null; then
         if show_yesno "Warning" "Alias $alias_name already exists. Replace it?"; then
             sed -i "/# === CLAUDE MULTI-ACCOUNT: $alias_name ===/,/^$/d" "$config_file" 2>/dev/null || true
-            sed -i "/# === CLAUDE MULTI-ACCOUNT: $alias_name ===/,+1d" "$config_file" 2>/dev/null || true
+            # Also remove the select_claude_subscription function if it exists
+            sed -i "/# Function to select subscription before running claude/,/^}$/d" "$config_file" 2>/dev/null || true
+            sed -i "/# Function to select subscription before running claude/,+1d" "$config_file" 2>/dev/null || true
         else
             print_info "Skipping $alias_name"
             return 1
@@ -366,6 +426,81 @@ add_shell_function() {
 }
 
 # Provider selection
+
+# Select subscription plan for Anthropic
+
+select_subscription_menu() {
+    local options=()
+    for plan_id in "${!SUBSCRIPTION_PLANS[@]}"; do
+        options+=("${SUBSCRIPTION_PLANS[$plan_id]}")
+    done
+    options+=("Ask me every time (prompt on launch)")
+
+    local choice=$(show_menu "Select Subscription Plan" "Choose your Anthropic subscription plan:" "${options[@]}")
+
+    if [ -z "$choice" ]; then
+        echo ""
+        return
+    fi
+
+    # Handle "Ask me every time"
+    if [ "$choice" -eq ${#SUBSCRIPTION_PLANS[@]} ]; then
+        echo "prompt"
+        return
+    fi
+
+    local i=1
+    for plan_id in "${!SUBSCRIPTION_PLANS[@]}"; do
+        if [ "$i" -eq "$choice" ]; then
+            echo "$plan_id"
+            return
+        fi
+        ((i++))
+    done
+    echo ""
+}
+
+# Setup web authentication for Claude
+
+setup_web_auth() {
+    local alias_name=$1
+    local config_dir=$2
+
+    # Create config directory
+    mkdir -p "$config_dir"
+
+    clear
+    echo -e "${CYAN}${BOLD}"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  Setting up Web Authentication"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo -e "${NC}"
+    echo ""
+    echo "Config directory: $config_dir"
+    echo ""
+    echo "You'll now be prompted to authenticate via your browser."
+    echo "This is the same process as when you first run claude."
+    echo ""
+
+    read -p "Press Enter to continue to authentication..." dummy
+
+    # Run claude with the custom config directory to trigger web auth
+    echo ""
+    echo "Starting Claude authentication..."
+    echo ""
+
+    CLAUDE_CONFIG_DIR="$config_dir" claude
+
+    echo ""
+    if [ $? -eq 0 ]; then
+        print_success "Web authentication completed!"
+        print_info "Credentials saved to: $config_dir"
+    else
+        print_error "Authentication failed or was cancelled"
+        print_info "You can retry by running: CLAUDE_CONFIG_DIR=$config_dir claude"
+        read -p "Press Enter to continue anyway..." dummy
+    fi
+}
 
 select_provider_menu() {
     local options=()
@@ -471,12 +606,8 @@ configure_provider() {
     local account_name="${alias_name^^}"
     account_name=${account_name//-/_}
 
-    local api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
-
-    if [ -z "$api_key" ]; then
-        print_error "API key cannot be empty"
-        return 1
-    fi
+    # Variable for API key (set inside case statements for providers that need it)
+    local api_key=""
 
     SELECTED_OPUS_MODEL=""
     SELECTED_SONNET_MODEL=""
@@ -484,32 +615,83 @@ configure_provider() {
     BASE_URL=""
     USE_CUSTOM_HEADERS="false"
     SKIP_PERMISSIONS="false"
+    USE_WEB_AUTH="false"
+    WEB_AUTH_DIR=""
+    SELECTED_SUBSCRIPTION=""
 
     case $provider in
         anthropic)
             select_models_menu "anthropic"
             BASE_URL=""
             USE_CUSTOM_HEADERS="false"
+            USE_WEB_AUTH="false"
+            # Select subscription plan
+            SELECTED_SUBSCRIPTION=$(select_subscription_menu)
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
+            ;;
+        claude-webauth)
+            select_models_menu "anthropic"
+            BASE_URL=""
+            USE_CUSTOM_HEADERS="false"
+            USE_WEB_AUTH="true"
+            # Create unique config directory for this account
+            WEB_AUTH_DIR="$CLAUDE_CONFIGS_BASE/${alias_name}"
+            # Select subscription plan
+            SELECTED_SUBSCRIPTION=$(select_subscription_menu)
+            # No API key needed - web auth handles it!
             ;;
         zai)
             select_models_menu "zai"
             BASE_URL="https://open.bigmodel.cn/api/anthropic"
             USE_CUSTOM_HEADERS="false"
+            USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         deepseek)
             select_models_menu "deepseek"
             BASE_URL="https://api.deepseek.com/anthropic"
             USE_CUSTOM_HEADERS="false"
+            USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         kimi)
             select_models_menu "kimi"
             BASE_URL="https://api.moonshot.ai/anthropic"
             USE_CUSTOM_HEADERS="false"
+            USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         openrouter)
             select_models_menu "openrouter"
             BASE_URL=$(show_input "OpenRouter URL" "Enter OpenRouter base URL:" "http://localhost:8787")
             USE_CUSTOM_HEADERS="true"
+            USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         custom)
             BASE_URL=$(show_input "Custom Base URL" "Enter custom base URL:")
@@ -518,6 +700,13 @@ configure_provider() {
                 USE_CUSTOM_HEADERS="true"
             else
                 USE_CUSTOM_HEADERS="false"
+            fi
+            USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
             fi
             ;;
     esac
@@ -530,17 +719,25 @@ configure_provider() {
         SKIP_PERMISSIONS="false"
     fi
 
-    add_api_key "$provider" "$account_name" "$api_key"
+    # For web auth, don't save API key - trigger web auth instead
+    if [ "$USE_WEB_AUTH" = "true" ]; then
+        setup_web_auth "$alias_name" "$WEB_AUTH_DIR"
+    else
+        # For API key auth, save the key (only if api_key was set)
+        if [ -n "$api_key" ]; then
+            add_api_key "$provider" "$account_name" "$api_key"
+        fi
+    fi
 
     add_shell_function "$shell_type" "$provider" "$account_name" "$alias_name" \
         "$BASE_URL" "$SELECTED_OPUS_MODEL" "$SELECTED_SONNET_MODEL" "$SELECTED_HAIKU_MODEL" \
-        "$USE_CUSTOM_HEADERS" "$SKIP_PERMISSIONS"
+        "$USE_CUSTOM_HEADERS" "$SKIP_PERMISSIONS" "$USE_WEB_AUTH" "$WEB_AUTH_DIR" "$SELECTED_SUBSCRIPTION"
 
     if [ $? -ne 0 ]; then
         return 1
     fi
 
-    configuration_success_menu "$alias_name" "$provider" "$shell_type" "$SKIP_PERMISSIONS"
+    configuration_success_menu "$alias_name" "$provider" "$shell_type" "$SKIP_PERMISSIONS" "$SELECTED_SUBSCRIPTION"
 }
 
 # Success menu after configuration
@@ -550,6 +747,7 @@ configuration_success_menu() {
     local provider=$2
     local shell_type=$3
     local skip_permissions=$4
+    local subscription=$5
     local config_file=$(get_shell_config_file "$shell_type")
 
     while true; do
@@ -566,7 +764,24 @@ configuration_success_menu() {
         echo "  Alias:        ${CYAN}$alias_name${NC}"
         echo "  Provider:     ${PROVIDERS[$provider]}"
         echo "  Config File:  $config_file"
-        echo "  Secrets:      $SECRETS_FILE"
+
+        # Show different info based on auth type
+        if [ "$provider" = "claude-webauth" ]; then
+            echo "  Auth Type:    Web Auth (OAuth)"
+            echo "  Config Dir:   $CLAUDE_CONFIGS_BASE/${alias_name}"
+        else
+            echo "  Secrets:      $SECRETS_FILE"
+        fi
+
+        # Show subscription info if applicable
+        if [ -n "$subscription" ] && [ "$subscription" != "" ]; then
+            if [ "$subscription" = "prompt" ]; then
+                echo -e "  Subscription: ${YELLOW}Ask on every launch${NC}"
+            elif [ "$subscription" != "none" ]; then
+                local sub_name="${SUBSCRIPTION_PLANS[$subscription]}"
+                echo -e "  Subscription: ${CYAN}${sub_name}${NC}"
+            fi
+        fi
 
         if [ "$skip_permissions" = "true" ]; then
             echo -e "  Flags:        ${YELLOW}--dangerously-skip-permissions${NC}"
@@ -576,6 +791,10 @@ configuration_success_menu() {
         echo -e "${BOLD}Usage:${NC}"
         echo "────────────────────────────────────"
         echo -e "  ${GREEN}$alias_name${NC}           # Start Claude Code"
+
+        if [ "$subscription" = "prompt" ]; then
+            echo -e "  ${YELLOW}(Will ask for subscription plan)${NC}"
+        fi
 
         if [ "$skip_permissions" = "true" ]; then
             echo -e "  ${YELLOW}(Permission checks disabled)${NC}"
