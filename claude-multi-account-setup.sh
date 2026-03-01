@@ -356,42 +356,9 @@ add_shell_function() {
         env_vars="$env_vars CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
     fi
 
-    # Subscription handling
+    # Subscription handling - set as env var
     if [ -n "$subscription" ] && [ "$subscription" != "none" ] && [ "$subscription" != "" ]; then
-        if [ "$subscription" = "prompt" ]; then
-            # Ask for subscription on every run - use a function instead
-            function_code+="$env_vars "
-            function_code+="select_claude_subscription \\\"\\\$@\\\"\""
-            function_code+="\n"
-
-            function_code+="# Function to select subscription before running claude\n"
-            function_code+="select_claude_subscription() {\n"
-            function_code+="    local subscription\n"
-            function_code+="    echo \"Select subscription plan for this session:\"\n"
-            function_code+="    echo \"  1) Free\"\n"
-            function_code+="    echo \"  2) Claude\"\n"
-            function_code+="    echo \"  3) Claude Pro\"\n"
-            function_code+="    echo \"  4) Claude Max\"\n"
-            function_code+="    echo \"  5) Enterprise\"\n"
-            function_code+="    read -p \"Enter choice [1-5]: \" sub_choice\n"
-            function_code+='    case $sub_choice in\n'
-            function_code+="        1) subscription=\"\" ;;\n"
-            function_code+="        2) subscription=\"claude\" ;;\n"
-            function_code+="        3) subscription=\"claude-pro\" ;;\n"
-            function_code+="        4) subscription=\"claude-max\" ;;\n"
-            function_code+="        5) subscription=\"enterprise\" ;;\n"
-            function_code+="        *) subscription=\"\" ;;\n"
-            function_code+="    esac\n"
-            function_code+='    [ -n "$subscription" ] && export CLAUDE_SUBSCRIPTION_ID="$subscription"\n'
-            function_code+="    claude \\\"\\\$@\\\"\n"
-            function_code+="}\n"
-
-            # Skip the rest since we used a function
-            skip_alias_creation="true"
-        else
-            # Fixed subscription - set as env var
-            env_vars="$env_vars CLAUDE_SUBSCRIPTION_ID=\\\"$subscription\\\""
-        fi
+        env_vars="$env_vars CLAUDE_SUBSCRIPTION_ID=\\\"$subscription\\\""
     fi
 
     if [ "$skip_alias_creation" != "true" ]; then
@@ -411,9 +378,6 @@ add_shell_function() {
     if grep -q "# === CLAUDE MULTI-ACCOUNT: $alias_name ===" "$config_file" 2>/dev/null; then
         if show_yesno "Warning" "Alias $alias_name already exists. Replace it?"; then
             sed -i "/# === CLAUDE MULTI-ACCOUNT: $alias_name ===/,/^$/d" "$config_file" 2>/dev/null || true
-            # Also remove the select_claude_subscription function if it exists
-            sed -i "/# Function to select subscription before running claude/,/^}$/d" "$config_file" 2>/dev/null || true
-            sed -i "/# Function to select subscription before running claude/,+1d" "$config_file" 2>/dev/null || true
         else
             print_info "Skipping $alias_name"
             return 1
@@ -434,18 +398,11 @@ select_subscription_menu() {
     for plan_id in "${!SUBSCRIPTION_PLANS[@]}"; do
         options+=("${SUBSCRIPTION_PLANS[$plan_id]}")
     done
-    options+=("Ask me every time (prompt on launch)")
 
     local choice=$(show_menu "Select Subscription Plan" "Choose your Anthropic subscription plan:" "${options[@]}")
 
     if [ -z "$choice" ]; then
         echo ""
-        return
-    fi
-
-    # Handle "Ask me every time"
-    if [ "$choice" -eq ${#SUBSCRIPTION_PLANS[@]} ]; then
-        echo "prompt"
         return
     fi
 
