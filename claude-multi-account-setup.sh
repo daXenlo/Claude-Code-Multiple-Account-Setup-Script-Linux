@@ -374,7 +374,7 @@ add_shell_function() {
             function_code+="    echo \"  4) Claude Max\"\n"
             function_code+="    echo \"  5) Enterprise\"\n"
             function_code+="    read -p \"Enter choice [1-5]: \" sub_choice\n"
-            function_code+="    case \\$sub_choice in\n"
+            function_code+='    case $sub_choice in\n'
             function_code+="        1) subscription=\"\" ;;\n"
             function_code+="        2) subscription=\"claude\" ;;\n"
             function_code+="        3) subscription=\"claude-pro\" ;;\n"
@@ -382,7 +382,7 @@ add_shell_function() {
             function_code+="        5) subscription=\"enterprise\" ;;\n"
             function_code+="        *) subscription=\"\" ;;\n"
             function_code+="    esac\n"
-            function_code+="    [ -n \\\"\\$subscription\\\" ] && export CLAUDE_SUBSCRIPTION_ID=\\\"\\$subscription\\\"\n"
+            function_code+='    [ -n "$subscription" ] && export CLAUDE_SUBSCRIPTION_ID="$subscription"\n'
             function_code+="    claude \\\"\\\$@\\\"\n"
             function_code+="}\n"
 
