@@ -8,10 +8,12 @@ Sets up aliases for different LLM providers (Anthropic, GLM, DeepSeek, Kimi, etc
 
 ## Features
 
-- **Multiple providers**: Anthropic, Z.ai/GLM, DeepSeek, Kimi, OpenRouter, or add your own
+- **Multiple providers**: Anthropic (API Key or Web Auth), Z.ai/GLM, DeepSeek, Kimi, OpenRouter, or add your own
 - **Interactive menus**: Nice selection menus (uses whiptail if you have it)
 - **Custom alias names**: Name your aliases whatever you want (`glm`, `zai`, `work`, `personal`)
 - **Model selection**: Choose which Opus/Sonnet/Haiku models to use
+- **Subscription plans**: Set Claude/Pro/Max/Enterprise subscription for Anthropic accounts
+- **Web authentication**: Use OAuth-based login instead of API keys for Anthropic
 - **Secure**: API keys stored in separate file with chmod 600
 - **Auto backup**: Backs up before deleting anything
 - **Works with bash & zsh**: Auto-detects your shell
@@ -35,12 +37,21 @@ sudo pacman -S libnewt        # Arch
 ### Add a new account
 
 1. Run the script → `➕ Add new account/provider configuration`
-2. Pick your provider (Z.ai, DeepSeek, whatever)
-3. Name your alias (e.g. `glm`, `zai`, `my-ai` - whatever works for you)
-4. Paste your API key
-5. Select models (or skip)
-6. Optionally add `--dangerously-skip-permissions` flag (not recommended, but available)
-7. Done! Alias is ready to use
+2. Pick your provider:
+
+   **For Anthropic:**
+   - **Anthropic (API Key)** - Uses your Anthropic API key
+   - **Anthropic (Web Auth)** - Uses web-based OAuth (like first-time setup)
+
+   **Other providers:** Z.ai, DeepSeek, Kimi, etc.
+
+3. Name your alias (e.g. `claude-pro`, `claude-work`, `glm`, `zai`)
+4. For API Key providers: Paste your API key
+5. For Web Auth: Script launches browser for OAuth login
+6. For Anthropic: Select subscription plan (Free, Claude, Pro, Max, Enterprise, or "Ask every time")
+7. Select models (or skip)
+8. Optionally add `--dangerously-skip-permissions` flag
+9. Done!
 
 ### Use your aliases
 
@@ -75,13 +86,33 @@ Select from the list, confirm, and it's gone.
 |------|--------------|
 | `~/.claude_secrets` | Your API keys (chmod 600) |
 | `~/.bashrc` or `~/.zshrc` | Your aliases go here |
+| `~/.claude_configs/<alias>/` | Web auth credentials (for OAuth accounts) |
 | `~/.claude_configs_backup/` | Backups before deleting |
 
 ## Supported providers & models (2026)
 
 ### Anthropic (Official)
+
+**Two authentication methods:**
+
+#### 1. API Key Authentication
 - Endpoint: Default
 - Models: `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-haiku-4-5-20251001`
+- Requires your Anthropic API key
+
+#### 2. Web Authentication (OAuth)
+- Uses browser-based OAuth flow (same as initial `claude` setup)
+- No API key needed - credentials stored in `~/.claude_configs/<alias>/`
+- Each account gets its own isolated config directory
+- Great for separating work/personal Claude accounts
+
+**Subscription Plans:**
+- **Free** - No subscription ID
+- **Claude** - Standard plan
+- **Claude Pro** - Pro plan with higher limits
+- **Claude Max** - Max plan with highest limits
+- **Enterprise** - Enterprise tier
+- **Ask every time** - Prompts you to select plan each time you run the alias
 
 ### Z.ai / Zhipu GLM
 - Endpoint: `https://open.bigmodel.cn/api/anthropic`
