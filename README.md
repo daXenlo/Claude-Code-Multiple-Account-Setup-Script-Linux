@@ -65,20 +65,6 @@ sudo pacman -S libnewt        # Arch
 8. Optionally add `--dangerously-skip-permissions` flag
 9. Done!
 
----
-
-### Web Auth vs API Key - Which should you use?
-
-| Feature | API Key | Web Auth |
-|---------|---------|----------|
-| **Setup speed** | ⚡ Fast (paste key) | 🔐 Slower (OAuth flow) |
-| **Multiple accounts** | ✗ Need multiple API keys | ✅ Separate OAuth sessions |
-| **Subscription management** | Manual (via web portal) | Built-in prompts |
-| | ||
-| **Best for** | Single account, quick setup | Multiple accounts, work/personal separation |
-| **Security** | API key stored locally | OAuth tokens stored securely |
-| **Portability** | Easy (copy .claude_secrets) | Requires re-auth on new machine |
-
 ### Use your aliases
 
 ```bash
@@ -89,64 +75,9 @@ claude-pro       # Start Claude Pro with API key
 claude-work      # Start Claude with Web Auth (work account)
 ```
 
-#### Web Auth + Subscriptions examples
-
-```bash
-# Fixed subscription - always uses Pro
-claude-pro        # → Uses Pro subscription
-claude-max        # → Uses Max subscription
-
-# "Ask every time" - interactive plan selection
-claude-work       # → Prompts: Free/Claude/Pro/Max/Enterprise
-
-# Switch between work/personal with same alias
-claude-work       # → Launch, pick plan, use that plan for session
-```
-
-#### Subscription prompt (when "Ask every time" is set):
-```
-Select subscription plan for this session:
-  1) Free
-   2) Claude
-  3) Claude Pro
-  4) Claude Max
-  5) Enterprise
-Enter choice [1-5]: 3    # You pick Pro for this session
-```
-
 ### Multiple terminals
 
 Just open multiple tabs and use different aliases in each. Each tab has its own config.
-
-### Multiple Anthropic accounts (Web Auth)
-
-Perfect for separating work and personal Claude accounts:
-
-```bash
-# Setup process:
-1. "Anthropic (Web Auth)" → alias: `claude-work`
-2. OAuth login with your work email
-3. Subscription: "Claude Pro"
-
-4. "Anthropic (Web Auth)" → alias: `claude-personal`
-5. OAuth login with your personal email
-6. Subscription: "Ask every time"
-
-# Now use them:
-claude-work      # Work account, always Pro
-claude-personal   # Personal account, prompts for plan each time
-```
-
-**File structure for web auth:**
-```
-~/.claude_configs/
-├── claude-work/
-│   └── [OAuth credentials]
-└── claude-personal/
-    └── [OAuth credentials]
-```
-
-Each web auth account is completely isolated - different OAuth sessions, different subscriptions.
 
 ### Remove an account
 
@@ -169,7 +100,7 @@ Select from the list, confirm, and it's gone.
 
 ## Supported providers & models (2026)
 
-### Anthropic (Official)
+### Anthropic API Usage
 
 **Two authentication methods - choose what works for you:**
 
