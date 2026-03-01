@@ -20,11 +20,15 @@ sudo pacman -S libnewt        # Arch
 ### Add a new account
 
 1. Run the script
-2. Pick your provider
+2. Pick your provider:
+   - **Anthropic (API Key)** - Quick setup with your API key
+   - **Anthropic (Web Auth)** - Browser OAuth, no API key needed
+   - **Other providers:** Z.ai, DeepSeek, Kimi, etc.
 3. Name your alias
-4. Paste your API key
-5. Select models (optional)
-6. Done!
+4. Paste your API key (or complete OAuth login for Web Auth)
+5. Select subscription plan (Anthropic accounts only)
+6. Select models (optional)
+7. Done!
 
 ### Use your aliases
 
@@ -32,6 +36,8 @@ sudo pacman -S libnewt        # Arch
 glm              # Start with GLM
 zai              # Start with Z.ai
 deepseek         # Start with DeepSeek
+claude-pro       # Start Claude Pro with API key
+claude-work      # Start Claude with Web Auth
 ```
 
 ### Remove an account
@@ -48,12 +54,15 @@ Main Menu → Configuration Management → Remove specific configuration
 | **Kimi** | `https://api.moonshot.ai/anthropic` | `kimi-k2.5`, `kimi-k2`, `kimi-k2-turbo`, `moonshot-v1-*` |
 | **OpenRouter** | `http://localhost:8787` | Various (needs [y-router](https://github.com/luohy15/y-router)) |
 
+**Anthropic subscriptions:** Free, Claude, Claude Pro, Claude Max, Enterprise, or "Ask every time"
+
 ## Files created
 
 | File | Purpose |
 |------|---------|
 | `~/.claude_secrets` | API keys (chmod 600) |
 | `~/.bashrc` or `~/.zshrc` | Aliases |
+| `~/.claude_configs/<alias>/` | Web auth credentials (OAuth accounts) |
 | `~/.claude_configs_backup/` | Backups |
 
 ## Troubleshooting
