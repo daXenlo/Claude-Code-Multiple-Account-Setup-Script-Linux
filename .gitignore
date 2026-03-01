@@ -1,0 +1,21 @@
+# Claude Code Multi-Account Setup - Git Ignore File
+# Protect sensitive information from being committed
+
+# Secrets files (containing API keys)
+.claude_secrets
+.secrets
+
+# Script configuration
+.claude_multi_config
+
+# Backup directories
+.claude_configs_backup/
+
+# Editor swap files
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
