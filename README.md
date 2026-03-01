@@ -36,9 +36,11 @@ sudo pacman -S libnewt        # Arch
 glm              # Start with GLM
 zai              # Start with Z.ai
 deepseek         # Start with DeepSeek
-claude-pro       # Start Claude Pro with API key
-claude-work      # Start Claude with Web Auth
+claude-pro       # Start Claude Pro
+claude-max       # Start Claude Max
 ```
+
+Each alias uses its configured plan and API key automatically.
 
 ### Remove an account
 
@@ -54,7 +56,7 @@ Main Menu → Configuration Management → Remove specific configuration
 | **Kimi** | `https://api.moonshot.ai/anthropic` | `kimi-k2.5`, `kimi-k2`, `kimi-k2-turbo`, `moonshot-v1-*` |
 | **OpenRouter** | `http://localhost:8787` | Various (needs [y-router](https://github.com/luohy15/y-router)) |
 
-**Anthropic subscriptions:** Free, Claude, Claude Pro, Claude Max, Enterprise, or "Ask every time"
+**Anthropic subscriptions:** Free, Claude, Claude Pro, Claude Max, Enterprise
 
 ## Files created
 
