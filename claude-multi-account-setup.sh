@@ -606,12 +606,8 @@ configure_provider() {
     local account_name="${alias_name^^}"
     account_name=${account_name//-/_}
 
-    local api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
-
-    if [ -z "$api_key" ]; then
-        print_error "API key cannot be empty"
-        return 1
-    fi
+    # Variable for API key (set inside case statements for providers that need it)
+    local api_key=""
 
     SELECTED_OPUS_MODEL=""
     SELECTED_SONNET_MODEL=""
@@ -631,6 +627,12 @@ configure_provider() {
             USE_WEB_AUTH="false"
             # Select subscription plan
             SELECTED_SUBSCRIPTION=$(select_subscription_menu)
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         claude-webauth)
             select_models_menu "anthropic"
@@ -641,30 +643,55 @@ configure_provider() {
             WEB_AUTH_DIR="$CLAUDE_CONFIGS_BASE/${alias_name}"
             # Select subscription plan
             SELECTED_SUBSCRIPTION=$(select_subscription_menu)
+            # No API key needed - web auth handles it!
             ;;
         zai)
             select_models_menu "zai"
             BASE_URL="https://open.bigmodel.cn/api/anthropic"
             USE_CUSTOM_HEADERS="false"
             USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         deepseek)
             select_models_menu "deepseek"
             BASE_URL="https://api.deepseek.com/anthropic"
             USE_CUSTOM_HEADERS="false"
             USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         kimi)
             select_models_menu "kimi"
             BASE_URL="https://api.moonshot.ai/anthropic"
             USE_CUSTOM_HEADERS="false"
             USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         openrouter)
             select_models_menu "openrouter"
             BASE_URL=$(show_input "OpenRouter URL" "Enter OpenRouter base URL:" "http://localhost:8787")
             USE_CUSTOM_HEADERS="true"
             USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
         custom)
             BASE_URL=$(show_input "Custom Base URL" "Enter custom base URL:")
@@ -675,6 +702,12 @@ configure_provider() {
                 USE_CUSTOM_HEADERS="false"
             fi
             USE_WEB_AUTH="false"
+            # Ask for API key
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
             ;;
     esac
 
@@ -690,7 +723,10 @@ configure_provider() {
     if [ "$USE_WEB_AUTH" = "true" ]; then
         setup_web_auth "$alias_name" "$WEB_AUTH_DIR"
     else
-        add_api_key "$provider" "$account_name" "$api_key"
+        # For API key auth, save the key (only if api_key was set)
+        if [ -n "$api_key" ]; then
+            add_api_key "$provider" "$account_name" "$api_key"
+        fi
     fi
 
     add_shell_function "$shell_type" "$provider" "$account_name" "$alias_name" \
