@@ -84,12 +84,11 @@ KIMI_MODELS[moonshot-v1-8k]="Moonshot v1 8K (Haiku)"
 
 # MiniMax models (2026)
 # Endpoint: https://api.minimax.io/anthropic
+# Note: MiniMax-M2.7-highspeed requires a Pay-as-you-go API key (not Token Plan)
+# M2.5/M2-her variants are not supported on the Anthropic-compatible endpoint
 declare -A MINIMAX_MODELS
-MINIMAX_MODELS[MiniMax-M2.7]="M2.7 (Opus) - recursive self-improvement, real-world engineering"
-MINIMAX_MODELS[MiniMax-M2.7-highspeed]="M2.7 Highspeed (Sonnet) - same perf, faster inference"
-MINIMAX_MODELS[MiniMax-M2.5]="M2.5 (Sonnet) - optimized for code generation"
-MINIMAX_MODELS[MiniMax-M2.5-highspeed]="M2.5 Highspeed (Haiku) - fast code, low latency"
-MINIMAX_MODELS[M2-her]="M2-her - roleplay & multi-turn dialogue"
+MINIMAX_MODELS[MiniMax-M2.7]="M2.7 - recommended, works with all API key types"
+MINIMAX_MODELS[MiniMax-M2.7-highspeed]="M2.7 Highspeed - faster, requires Pay-as-you-go API key"
 
 # OpenRouter models
 declare -A OPENROUTER_MODELS
