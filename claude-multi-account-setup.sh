@@ -329,42 +329,37 @@ add_shell_function() {
     local function_code=""
 
     function_code+="# === CLAUDE MULTI-ACCOUNT: $alias_name ===\n"
-    function_code+="alias $alias_name=\""
+    # Use single quotes so API key variables expand at alias execution time, not at source time
+    function_code+="alias $alias_name='"
 
     local env_vars=""
 
-    # Web auth: use CLAUDE_CONFIG_DIR instead of API key
+    # Web auth / config dir: use CLAUDE_CONFIG_DIR instead of API key
     if [ "$use_web_auth" = "true" ]; then
-        env_vars="CLAUDE_CONFIG_DIR=\\\"$web_auth_dir\\\""
+        env_vars="CLAUDE_CONFIG_DIR=\"$web_auth_dir\""
     elif [ "$provider" != "anthropic" ]; then
         # API key auth for other providers
-        env_vars="ANTHROPIC_AUTH_TOKEN=\\\"\$${account_name}_API_KEY\\\""
+        env_vars="ANTHROPIC_AUTH_TOKEN=\"\$${account_name}_API_KEY\""
     fi
 
     if [ -n "$base_url" ]; then
-        env_vars="$env_vars ANTHROPIC_BASE_URL=\\\"$base_url\\\""
+        env_vars="$env_vars ANTHROPIC_BASE_URL=\"$base_url\""
     fi
 
     if [ -n "$opus_model" ]; then
-        env_vars="$env_vars ANTHROPIC_DEFAULT_OPUS_MODEL=\\\"$opus_model\\\""
+        env_vars="$env_vars ANTHROPIC_DEFAULT_OPUS_MODEL=\"$opus_model\""
     fi
 
     if [ -n "$sonnet_model" ]; then
-        env_vars="$env_vars ANTHROPIC_DEFAULT_SONNET_MODEL=\\\"$sonnet_model\\\""
+        env_vars="$env_vars ANTHROPIC_DEFAULT_SONNET_MODEL=\"$sonnet_model\""
     fi
 
     if [ -n "$haiku_model" ]; then
-        env_vars="$env_vars ANTHROPIC_DEFAULT_HAIKU_MODEL=\\\"$haiku_model\\\""
-    fi
-
-    # MiniMax requires ANTHROPIC_MODEL and ANTHROPIC_SMALL_FAST_MODEL to be set
-    # explicitly, otherwise Claude Code falls back to default Anthropic model names
-    if [ "$provider" = "minimax" ] && [ -n "$sonnet_model" ]; then
-        env_vars="$env_vars ANTHROPIC_MODEL=\\\"$sonnet_model\\\" ANTHROPIC_SMALL_FAST_MODEL=\\\"$sonnet_model\\\""
+        env_vars="$env_vars ANTHROPIC_DEFAULT_HAIKU_MODEL=\"$haiku_model\""
     fi
 
     if [ "$use_custom_headers" = "true" ]; then
-        env_vars="$env_vars ANTHROPIC_CUSTOM_HEADERS=\\\"x-api-key: \$${account_name}_API_KEY\\\""
+        env_vars="$env_vars ANTHROPIC_CUSTOM_HEADERS=\"x-api-key: \$${account_name}_API_KEY\""
     fi
 
     if [ "$provider" != "anthropic" ] && [ "$use_web_auth" != "true" ]; then
@@ -373,7 +368,7 @@ add_shell_function() {
 
     # Subscription handling - set as env var
     if [ -n "$subscription" ] && [ "$subscription" != "none" ] && [ "$subscription" != "" ]; then
-        env_vars="$env_vars CLAUDE_SUBSCRIPTION_ID=\\\"$subscription\\\""
+        env_vars="$env_vars CLAUDE_SUBSCRIPTION_ID=\"$subscription\""
     fi
 
     if [ "$skip_alias_creation" != "true" ]; then
@@ -387,7 +382,7 @@ add_shell_function() {
             function_code+=" --dangerously-skip-permissions"
         fi
 
-        function_code+=" \\\"\\\$@\\\"\"\n"
+        function_code+=" \"\$@\"'\n"
     fi
 
     if grep -q "# === CLAUDE MULTI-ACCOUNT: $alias_name ===" "$config_file" 2>/dev/null; then
@@ -743,10 +738,12 @@ configure_provider() {
             fi
             ;;
         minimax)
-            select_models_menu "minimax"
-            BASE_URL="https://api.minimax.io/anthropic"
+            # MiniMax uses settings.json + CLAUDE_CONFIG_DIR (recommended by MiniMax docs)
+            # All model/URL config goes in settings.json; alias only sets CLAUDE_CONFIG_DIR
+            BASE_URL=""
             USE_CUSTOM_HEADERS="false"
-            USE_WEB_AUTH="false"
+            USE_WEB_AUTH="true"
+            WEB_AUTH_DIR="$CLAUDE_CONFIGS_BASE/${alias_name}"
             api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
             if [ -z "$api_key" ]; then
                 print_error "API key cannot be empty"
@@ -791,8 +788,33 @@ configure_provider() {
         SKIP_PERMISSIONS="false"
     fi
 
+    # For minimax: write settings.json into config dir, use CLAUDE_CONFIG_DIR alias
+    if [ "$provider" = "minimax" ]; then
+        mkdir -p "$WEB_AUTH_DIR"
+        local minimax_model="MiniMax-M2.7"
+        python3 -c "
+import json
+config = {
+    'env': {
+        'ANTHROPIC_BASE_URL': 'https://api.minimax.io/anthropic',
+        'ANTHROPIC_AUTH_TOKEN': '$api_key',
+        'API_TIMEOUT_MS': '3000000',
+        'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': '1',
+        'ANTHROPIC_MODEL': '$minimax_model',
+        'ANTHROPIC_SMALL_FAST_MODEL': '$minimax_model',
+        'ANTHROPIC_DEFAULT_SONNET_MODEL': '$minimax_model',
+        'ANTHROPIC_DEFAULT_OPUS_MODEL': '$minimax_model',
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL': '$minimax_model'
+    }
+}
+with open('$WEB_AUTH_DIR/settings.json', 'w') as f:
+    json.dump(config, f, indent=2)
+" || { print_error "Failed to write settings.json (python3 required)"; return 1; }
+        chmod 600 "$WEB_AUTH_DIR/settings.json"
+        sync_mcp_from_default_config "$WEB_AUTH_DIR"
+        print_success "Created MiniMax config at $WEB_AUTH_DIR/settings.json"
     # For web auth, don't save API key - trigger web auth instead
-    if [ "$USE_WEB_AUTH" = "true" ]; then
+    elif [ "$USE_WEB_AUTH" = "true" ]; then
         setup_web_auth "$alias_name" "$WEB_AUTH_DIR"
         sync_mcp_from_default_config "$WEB_AUTH_DIR"
     else
