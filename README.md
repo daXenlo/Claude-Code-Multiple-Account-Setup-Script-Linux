@@ -54,6 +54,7 @@ Main Menu → Configuration Management → Remove specific configuration
 | **Z.ai / GLM** | `https://open.bigmodel.cn/api/anthropic` | `glm-5`, `glm-4.7`, `glm-4.7-flash`, `glm-4.5-air` |
 | **DeepSeek** | `https://api.deepseek.com/anthropic` | `deepseek-reasoner`, `deepseek-chat` |
 | **Kimi** | `https://api.moonshot.ai/anthropic` | `kimi-k2.5`, `kimi-k2`, `kimi-k2-turbo`, `moonshot-v1-*` |
+| **MiniMax** | `https://api.minimax.io/anthropic` | `MiniMax-M2.7`, `MiniMax-M2.7-highspeed`, `MiniMax-M2.5`, `MiniMax-M2.5-highspeed`, `M2-her` |
 | **OpenRouter** | `http://localhost:8787` | Various (needs [y-router](https://github.com/luohy15/y-router)) |
 
 **Anthropic subscriptions:** Free, Claude, Claude Pro, Claude Max, Enterprise

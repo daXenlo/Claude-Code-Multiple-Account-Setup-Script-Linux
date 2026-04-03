@@ -38,6 +38,7 @@ PROVIDERS[claude-webauth]="Anthropic (Web Auth)"
 PROVIDERS[zai]="Z.ai (GLM)"
 PROVIDERS[deepseek]="DeepSeek"
 PROVIDERS[kimi]="Kimi (Moonshot AI)"
+PROVIDERS[minimax]="MiniMax"
 PROVIDERS[openrouter]="OpenRouter"
 PROVIDERS[custom]="Custom Provider"
 
@@ -80,6 +81,15 @@ KIMI_MODELS[kimi-k2-turbo]="Kimi K2 Turbo (Sonnet) - Faster"
 KIMI_MODELS[moonshot-v1-128k]="Moonshot v1 128K (Haiku)"
 KIMI_MODELS[moonshot-v1-32k]="Moonshot v1 32K (Haiku)"
 KIMI_MODELS[moonshot-v1-8k]="Moonshot v1 8K (Haiku)"
+
+# MiniMax models (2026)
+# Endpoint: https://api.minimax.io/anthropic
+declare -A MINIMAX_MODELS
+MINIMAX_MODELS[MiniMax-M2.7]="M2.7 (Opus) - recursive self-improvement, real-world engineering"
+MINIMAX_MODELS[MiniMax-M2.7-highspeed]="M2.7 Highspeed (Sonnet) - same perf, faster inference"
+MINIMAX_MODELS[MiniMax-M2.5]="M2.5 (Sonnet) - optimized for code generation"
+MINIMAX_MODELS[MiniMax-M2.5-highspeed]="M2.5 Highspeed (Haiku) - fast code, low latency"
+MINIMAX_MODELS[M2-her]="M2-her - roleplay & multi-turn dialogue"
 
 # OpenRouter models
 declare -A OPENROUTER_MODELS
@@ -417,6 +427,95 @@ select_subscription_menu() {
     echo ""
 }
 
+# Sync MCP servers and plugins from the default ~/.claude config to a custom CLAUDE_CONFIG_DIR
+
+sync_mcp_from_default_config() {
+    local target_dir=$1
+    local default_config="$HOME/.claude"
+
+    if ! command -v python3 &>/dev/null; then
+        print_warning "python3 not found - skipping MCP sync"
+        return 0
+    fi
+
+    if [ ! -f "$default_config/settings.json" ]; then
+        return 0
+    fi
+
+    local has_enabled_plugins=false
+    local has_extra_marketplaces=false
+
+    # Check for enabledPlugins in default settings.json
+    local plugin_count
+    plugin_count=$(python3 -c "
+import json
+try:
+    d = json.load(open('$default_config/settings.json'))
+    print(len(d.get('enabledPlugins', {})))
+except:
+    print(0)
+" 2>/dev/null)
+    [ "${plugin_count:-0}" -gt 0 ] && has_enabled_plugins=true
+
+    # Check for extraKnownMarketplaces in default settings.json
+    local marketplace_count
+    marketplace_count=$(python3 -c "
+import json
+try:
+    d = json.load(open('$default_config/settings.json'))
+    print(len(d.get('extraKnownMarketplaces', {})))
+except:
+    print(0)
+" 2>/dev/null)
+    [ "${marketplace_count:-0}" -gt 0 ] && has_extra_marketplaces=true
+
+    if ! $has_enabled_plugins && ! $has_extra_marketplaces; then
+        return 0
+    fi
+
+    local sync_msg="Found plugin configurations in your default Claude config (~/.claude):\n"
+    $has_enabled_plugins && sync_msg+="  • Enabled plugins (e.g. Playwright, z.ai tools)\n"
+    $has_extra_marketplaces && sync_msg+="  • Extra plugin marketplaces\n"
+    sync_msg+="\nSync these to the new account config?"
+
+    if ! show_yesno "Sync Plugins" "$sync_msg"; then
+        return 0
+    fi
+
+    mkdir -p "$target_dir"
+
+    # Merge enabledPlugins and extraKnownMarketplaces into target settings.json
+    python3 - <<PYEOF
+import json
+
+src = json.load(open('$default_config/settings.json'))
+target_file = '$target_dir/settings.json'
+
+try:
+    target = json.load(open(target_file))
+except Exception:
+    target = {}
+
+if src.get('enabledPlugins'):
+    target.setdefault('enabledPlugins', {})
+    target['enabledPlugins'].update(src['enabledPlugins'])
+
+if src.get('extraKnownMarketplaces'):
+    target.setdefault('extraKnownMarketplaces', {})
+    target['extraKnownMarketplaces'].update(src['extraKnownMarketplaces'])
+
+with open(target_file, 'w') as f:
+    json.dump(target, f, indent=2)
+PYEOF
+    print_success "Synced plugin config into $target_dir/settings.json"
+
+    # Copy plugins cache directory if it exists (speeds up first launch)
+    if [ -d "$default_config/plugins" ]; then
+        cp -r "$default_config/plugins" "$target_dir/"
+        print_success "Copied plugins cache to $target_dir/plugins/"
+    fi
+}
+
 # Setup web authentication for Claude
 
 setup_web_auth() {
@@ -638,6 +737,17 @@ configure_provider() {
                 return 1
             fi
             ;;
+        minimax)
+            select_models_menu "minimax"
+            BASE_URL="https://api.minimax.io/anthropic"
+            USE_CUSTOM_HEADERS="false"
+            USE_WEB_AUTH="false"
+            api_key=$(show_input "API Key" "Enter API key for ${PROVIDERS[$provider]}:")
+            if [ -z "$api_key" ]; then
+                print_error "API key cannot be empty"
+                return 1
+            fi
+            ;;
         openrouter)
             select_models_menu "openrouter"
             BASE_URL=$(show_input "OpenRouter URL" "Enter OpenRouter base URL:" "http://localhost:8787")
@@ -679,6 +789,7 @@ configure_provider() {
     # For web auth, don't save API key - trigger web auth instead
     if [ "$USE_WEB_AUTH" = "true" ]; then
         setup_web_auth "$alias_name" "$WEB_AUTH_DIR"
+        sync_mcp_from_default_config "$WEB_AUTH_DIR"
     else
         # For API key auth, save the key (only if api_key was set)
         if [ -n "$api_key" ]; then
