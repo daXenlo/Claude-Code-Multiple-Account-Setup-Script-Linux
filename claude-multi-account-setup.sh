@@ -357,6 +357,12 @@ add_shell_function() {
         env_vars="$env_vars ANTHROPIC_DEFAULT_HAIKU_MODEL=\\\"$haiku_model\\\""
     fi
 
+    # MiniMax requires ANTHROPIC_MODEL and ANTHROPIC_SMALL_FAST_MODEL to be set
+    # explicitly, otherwise Claude Code falls back to default Anthropic model names
+    if [ "$provider" = "minimax" ] && [ -n "$sonnet_model" ]; then
+        env_vars="$env_vars ANTHROPIC_MODEL=\\\"$sonnet_model\\\" ANTHROPIC_SMALL_FAST_MODEL=\\\"$sonnet_model\\\""
+    fi
+
     if [ "$use_custom_headers" = "true" ]; then
         env_vars="$env_vars ANTHROPIC_CUSTOM_HEADERS=\\\"x-api-key: \$${account_name}_API_KEY\\\""
     fi
