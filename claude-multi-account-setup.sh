@@ -281,6 +281,7 @@ get_shell_config_file() {
 # Setup functions
 
 setup_secrets_file() {
+    local config_file=$1
     print_info "Setting up secure secrets file..."
 
     if [ ! -f "$SECRETS_FILE" ]; then
@@ -289,6 +290,14 @@ setup_secrets_file() {
         print_success "Created secrets file at $SECRETS_FILE"
     else
         print_info "Secrets file already exists at $SECRETS_FILE"
+    fi
+
+    # Ensure the secrets file is sourced in the shell config so API key
+    # variables (e.g. ZAI_API_KEY, CLAUDE_MAIN_API_KEY) are available at
+    # alias execution time.
+    if [ -n "$config_file" ] && ! grep -q "claude_secrets" "$config_file" 2>/dev/null; then
+        echo "[ -f \"$SECRETS_FILE\" ] && source \"$SECRETS_FILE\"  # claude-multi-account secrets" >> "$config_file"
+        print_success "Added secrets sourcing to $config_file"
     fi
 }
 
@@ -337,8 +346,8 @@ add_shell_function() {
     # Web auth / config dir: use CLAUDE_CONFIG_DIR instead of API key
     if [ "$use_web_auth" = "true" ]; then
         env_vars="CLAUDE_CONFIG_DIR=\"$web_auth_dir\""
-    elif [ "$provider" != "anthropic" ]; then
-        # API key auth for other providers
+    else
+        # API key auth — applies to all providers including Anthropic API key
         env_vars="ANTHROPIC_AUTH_TOKEN=\"\$${account_name}_API_KEY\""
     fi
 
@@ -1241,7 +1250,7 @@ main() {
         print_info "Install whiptail for better experience: sudo apt install whiptail"
     fi
 
-    setup_secrets_file
+    setup_secrets_file "$config_file"
 
     # Go straight to main menu
     main_menu
